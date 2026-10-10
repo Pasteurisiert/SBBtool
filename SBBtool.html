@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SBB / ÖV Schweiz - Gesamter Fahrplan-Multigraph & Reiseplan</title>
+  <style>
+    :root {
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-color: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #cbd5e1;
+      --primary-color: #eb0000;
+      --primary-hover: #b91c1c;
+      --node-bg: #ffffff;
+      --alert-color: #dc2626;
+      --alert-bg: #fef2f2;
+      --success-color: #16a34a;
+      --highlight-fastest: #2563eb;
+      --highlight-transfers: #059669;
+      --highlight-cost: #d97706;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0b0f19;
+      --card-bg: #151d2c;
+      --text-color: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border-color: #243044;
+      --primary-color: #ef4444;
+      --primary-hover: #dc2626;
+      --node-bg: #151d2c;
+      --alert-color: #f87171;
+      --alert-bg: #450a0a;
+      --success-color: #4ade80;
+      --highlight-fastest: #60a5fa;
+      --highlight-transfers: #34d399;
+      --highlight-cost: #fbbf24;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 24px;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+    }
+
+    .theme-toggle-btn {
+      padding: 8px 14px;
+      border: 1px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-color);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .query-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    input, select, button {
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-size: 14px;
+    }
+
+    button.btn-search {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button.btn-search:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-manage-stations {
+      background: none;
+      border: none;
+      color: var(--primary-color);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    .btn-recalc {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.2s;
+    }
+
+    .btn-recalc:hover {
+      background-color: #1d4ed8;
+    }
+
+    .btn-recalc:disabled {
+      background-color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    .btn-export {
+      background-color: #0f766e;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-export:hover {
+      background-color: #115e59;
+    }
+
+    /* Integrierte Combobox: Pfeil direkt im Eingabefeld */
+    .combobox-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    .combobox-wrapper input {
+      width: 100%;
+      padding-right: 36px;
+    }
+
+    .combobox-toggle-btn {
+      position: absolute;
+      right: 1px;
+      top: 1px;
+      bottom: 1px;
+      width: 32px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      border-radius: 0 5px 5px 0;
+      transition: background-color 0.15s;
+    }
+
+    .combobox-toggle-btn:hover {
+      background-color: var(--border-color);
+      color: var(--text-color);
+    }
+
+    .combobox-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      max-height: 240px;
+      overflow-y: auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+      z-index: 500;
+    }
+
+    .combobox-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .combobox-item:last-child {
+      border-bottom: none;
+    }
+
+    .combobox-item:hover {
+      background-color: var(--border-color);
+    }
+
+    /* Modal Styling */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      width: 440px;
+      max-width: 90vw;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      font-size: 16px;
+      margin: 0;
+      color: var(--text-color);
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      font-size: 16px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .station-manage-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .station-manage-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .btn-delete-station {
+      background: none;
+      border: none;
+      color: var(--alert-color);
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    /* Schritt-Sektionen */
+    .step-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .step-header {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .step-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-badge {
+      background: var(--primary-color);
+      color: #fff;
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    /* Lineare Stränge Styling für Schritt 2 */
+    .strands-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .strand-card {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    .strand-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--text-color);
+    }
+
+    .chain-flow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .chain-node {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 140px;
+    }
+
+    .chain-node.interchange {
+      border-color: #3b82f6;
+    }
+
+    .chain-node.interchange.breached {
+      border-color: var(--alert-color);
+      background-color: var(--alert-bg);
+    }
+
+    .chain-node .station-label {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text-color);
+    }
+
+    .chain-node .time-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .transfer-control {
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    .chain-input {
+      width: 55px;
+      padding: 4px;
+      font-size: 12px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .chain-edge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .line-badge {
+      background: var(--border-color);
+      color: var(--text-color);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .line-badge.walk {
+      background-color: #fef3c7;
+      color: #92400e;
+      border: 1px dashed #d97706;
+    }
+
+    [data-theme="dark"] .line-badge.walk {
+      background-color: #451a03;
+      color: #fde68a;
+    }
+
+    .edge-duration {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .edge-arrow {
+      color: var(--text-muted);
+      font-weight: bold;
+    }
+
+    /* Podium für Schritt 3 */
+    .podium-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .podium-card {
+      border-radius: 8px;
+      padding: 16px;
+      border: 2px solid var(--border-color);
+      background: var(--bg-color);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .podium-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+    }
+
+    .podium-card.fastest { border-color: var(--highlight-fastest); }
+    .podium-card.transfers { border-color: var(--highlight-transfers); }
+    .podium-card.cost { border-color: var(--highlight-cost); }
+
+    .podium-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .graph-viewport {
+      overflow-x: auto;
+      overflow-y: auto;
+      min-height: 500px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--card-bg);
+      padding: 24px;
+    }
+
+    .status-msg {
+      color: var(--text-muted);
+      font-size: 14px;
+      text-align: center;
+      padding: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h2>Schweiz ÖV: Kaskadierende Routenfindung &amp; Multigraph</h2>
+      <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">Dunkelmodus</button>
+    </header>
+
+    <div class="query-card">
+      <form id="searchForm" onsubmit="executeStep1(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="fromInput">Von (Startort)</label>
+            <div class="combobox-wrapper">
+              <input type="text" id="fromInput" required placeholder="z. B. Zürich HB" value="Zürich HB" autocomplete="off" oninput="handleStationType('from', this.value)">
+              <button type="button" class="combobox-toggle-btn" tabindex="-1" onclick="toggleCombobox('from')">▼</button>
+              <div id="fromDropdownMenu" class="combobox-menu" style="display:none;"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label for="toInput">Nach (Zielort)</label>
+              <button type="button" class="btn-manage-stations" onclick="openStationManager()">⚙️ Orte verwalten</button>
+            </div>
+            <div class="combobox-wrapper">
+              <input type="text" id="toInput" required placeholder="z. B. Bern" value="Bern" autocomplete="off" oninput="handleStationType('to', this.value)">
+              <button type="button" class="combobox-toggle-btn" tabindex="-1" onclick="toggleCombobox('to')">▼</button>
+              <div id="toDropdownMenu" class="combobox-menu" style="display:none;"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="dateInput">Datum</label>
+            <input type="date" id="dateInput" required>
+          </div>
+          <div class="form-group">
+            <label for="timeInput">Uhrzeit</label>
+            <input type="time" id="timeInput" required>
+          </div>
+          <div class="form-group">
+            <label for="modeSelect">Referenzzeit-Modus</label>
+            <select id="modeSelect">
+              <option value="0">Abfahrt ab (Startzeit fix ➔ Folgeabschnitt später)</option>
+              <option value="1">Ankunft bis (Zielzeit fix ➔ Zubringer früher)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <button type="submit" class="btn-search">1. Mögliche Wege ermitteln</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Modal zur Verwaltung vordefinierter/gespeicherter Orte -->
+    <div id="stationManagerModal" class="modal-backdrop" style="display:none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Ortsfavoriten verwalten</h3>
+          <button type="button" class="modal-close-btn" onclick="closeStationManager()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <input type="text" id="newStationInput" placeholder="Neuen Ort vordefinieren..." style="flex:1;">
+            <button type="button" class="btn-search" style="padding:8px 14px;" onclick="addNewPresetStation()">Hinzufügen</button>
+          </div>
+          <ul id="stationListContainer" class="station-manage-list"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schritt 1: Pfadkorridore -->
+    <section class="step-section" id="step1Container" style="display:none;">
+      <div class="step-header">
+        <div class="step-header-left">
+          <span class="step-badge">Schritt 1</span>
+          <span>Ermittelte und synchronisierte Wegekorridore</span>
+        </div>
+      </div>
+      <div id="step1Output"></div>
+    </section>
+
+    <!-- Schritt 2: Lineare Umsteigekette -->
+    <section class="step-section" id="step2Container" style="display:none;">
+      <div class="step-header">
+        <div class="step-header-left">
+          <span class="step-badge">Schritt 2</span>
+          <span>Umsteigepunkte &amp; Mindest-Umsteigezeiten pro Pfad</span>
+        </div>
+        <button type="button" class="btn-recalc" id="btnForceRecalc" onclick="forceRecalculation()">
+          🔄 Neuberechnung erzwingen
+        </button>
+      </div>
+      <div class="strands-wrapper" id="step2StrandsWrapper"></div>
+    </section>
+
+    <!-- Schritt 3: Beste Routen, Multigraph & Druck-Export -->
+    <section class="step-section" id="step3Container" style="display:none;">
+      <div class="step-header">
+        <div class="step-header-left">
+          <span class="step-badge">Schritt 3</span>
+          <span>Optimale Routen (Wenig Umsteigen, Kürzeste Reisezeit, Geringste Kosten)</span>
+        </div>
+        <button class="btn-export" onclick="openItineraryWindow()">
+          📄 Reiseplan im neuen Fenster öffnen
+        </button>
+      </div>
+      <div class="podium-grid" id="podiumSummary"></div>
+      <div class="graph-viewport" id="graphContainer"></div>
+    </section>
+  </div>
+
+  <script>
+    const initDate = new Date();
+    document.getElementById('dateInput').value = initDate.toISOString().split('T')[0];
+    document.getElementById('timeInput').value = initDate.toTimeString().slice(0, 5);
+
+    let activeConnections = [];
+    let evaluatedRoutes = [];
+    let currentBestRoutes = [];
+    let queryOrigin = '';
+    let queryDestination = '';
+    let queryIsArrivalMode = false;
+
+    const STORAGE_KEY_TRANSFERS = 'sbb_station_transfer_defaults';
+    const STORAGE_KEY_SAVED_STATIONS = 'sbb_saved_stations_list';
+
+    const DEFAULT_STATIONS = [
+      'Zürich HB', 'Bern', 'Basel SBB', 'Luzern', 'Winterthur',
+      'St. Gallen', 'Genève', 'Lausanne', 'Lugano', 'Baden',
+      'Baden, Bahnhof West', 'Brugg AG', 'Olten', 'Aarau'
+    ];
+
+    // Persistente Verwaltung der Stations-Favoriten
+    function loadSavedStations() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_SAVED_STATIONS);
+        return raw ? JSON.parse(raw) : [...DEFAULT_STATIONS];
+      } catch (e) {
+        return [...DEFAULT_STATIONS];
+      }
+    }
+
+    function saveStationHistory(stationName) {
+      if (!stationName) return;
+      const list = loadSavedStations();
+      if (!list.includes(stationName)) {
+        list.unshift(stationName);
+        try {
+          localStorage.setItem(STORAGE_KEY_SAVED_STATIONS, JSON.stringify(list));
+        } catch (e) {
+          console.warn('LocalStorage Schreibfehler:', e);
+        }
+      }
+    }
+
+    // Integrierte Combobox: Toggle & Rendern
+    function toggleCombobox(target) {
+      const menu = document.getElementById(`${target}DropdownMenu`);
+      const otherMenu = document.getElementById(target === 'from' ? 'toDropdownMenu' : 'fromDropdownMenu');
+      if (otherMenu) otherMenu.style.display = 'none';
+
+      if (menu.style.display === 'block') {
+        menu.style.display = 'none';
+        return;
+      }
+
+      renderComboboxList(target, loadSavedStations());
+      menu.style.display = 'block';
+    }
+
+    function renderComboboxList(target, stationList) {
+      const menu = document.getElementById(`${target}DropdownMenu`);
+      if (!menu) return;
+      menu.innerHTML = '';
+
+      if (!stationList || stationList.length === 0) {
+        menu.innerHTML = '<div style="padding:10px; font-size:12px; color:var(--text-muted); text-align:center;">Keine Orte vorhanden</div>';
+        return;
+      }
+
+      stationList.forEach(st => {
+        const item = document.createElement('div');
+        item.className = 'combobox-item';
+        item.textContent = st;
+        item.onmousedown = (e) => {
+          e.preventDefault();
+          document.getElementById(`${target}Input`).value = st;
+          menu.style.display = 'none';
+        };
+        menu.appendChild(item);
+      });
+    }
+
+    function handleStationType(target, query) {
+      const menu = document.getElementById(`${target}DropdownMenu`);
+      if (menu) menu.style.display = 'none';
+      fetchAutocomplete(target, query);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.combobox-wrapper')) {
+        const fromMenu = document.getElementById('fromDropdownMenu');
+        const toMenu = document.getElementById('toDropdownMenu');
+        if (fromMenu) fromMenu.style.display = 'none';
+        if (toMenu) toMenu.style.display = 'none';
+      }
+    });
+
+    // Modal zur Ortsverwaltung
+    function openStationManager() {
+      renderStationManagerList();
+      document.getElementById('stationManagerModal').style.display = 'flex';
+    }
+
+    function closeStationManager() {
+      document.getElementById('stationManagerModal').style.display = 'none';
+    }
+
+    function renderStationManagerList() {
+      const list = loadSavedStations();
+      const container = document.getElementById('stationListContainer');
+      container.innerHTML = '';
+      list.forEach((st, idx) => {
+        const li = document.createElement('li');
+        li.className = 'station-manage-item';
+        li.innerHTML = `
+          <span>${st}</span>
+          <button type="button" class="btn-delete-station" title="Löschen" onclick="deleteSavedStation(${idx})">🗑️</button>
+        `;
+        container.appendChild(li);
+      });
+    }
+
+    function addNewPresetStation() {
+      const input = document.getElementById('newStationInput');
+      const val = input.value.trim();
+      if (!val) return;
+      const list = loadSavedStations();
+      if (!list.includes(val)) {
+        list.push(val);
+        localStorage.setItem(STORAGE_KEY_SAVED_STATIONS, JSON.stringify(list));
+        input.value = '';
+        renderStationManagerList();
+      }
+    }
+
+    function deleteSavedStation(index) {
+      const list = loadSavedStations();
+      list.splice(index, 1);
+      localStorage.setItem(STORAGE_KEY_SAVED_STATIONS, JSON.stringify(list));
+      renderStationManagerList();
+    }
+
+    // Persistente Verwaltung der Umsteigezeiten
+    function loadSavedTransferTimes() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_TRANSFERS);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveStationTransferTime(stationName, minutes) {
+      const times = loadSavedTransferTimes();
+      times[stationName] = minutes;
+      try {
+        localStorage.setItem(STORAGE_KEY_TRANSFERS, JSON.stringify(times));
+      } catch (e) {
+        console.warn('LocalStorage Schreibfehler:', e);
+      }
+    }
+
+    function toggleTheme() {
+      const doc = document.documentElement;
+      const btn = document.getElementById('themeToggleBtn');
+      const isDark = doc.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        doc.removeAttribute('data-theme');
+        btn.textContent = 'Dunkelmodus';
+      } else {
+        doc.setAttribute('data-theme', 'dark');
+        btn.textContent = 'Hellmodus';
+      }
+    }
+
+    function formatTime(isoStr) {
+      if (!isoStr) return '--:--';
+      return new Date(isoStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    let acTimeout = null;
+    function fetchAutocomplete(target, term) {
+      if (!term || term.length < 2) return;
+      clearTimeout(acTimeout);
+      acTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://transport.opendata.ch/v1/locations?query=${encodeURIComponent(term)}&type=station`);
+          const data = await res.json();
+          if (data && data.stations && data.stations.length > 0) {
+            const menu = document.getElementById(`${target}DropdownMenu`);
+            const stationNames = data.stations.slice(0, 8).map(s => s.name);
+            renderComboboxList(target, stationNames);
+            menu.style.display = 'block';
+          }
+        } catch (e) {
+          console.warn('Autocomplete Fehler:', e);
+        }
+      }, 250);
+    }
+
+    // Normalisiert Abschnitte: Ergänzt fehlende Fusswege zwischen abweichenden Haltestellen
+    function normalizeConnectionSections(conn) {
+      const rawSections = (conn.sections || []).filter(s => s.journey || s.walk);
+      const normalized = [];
+
+      for (let i = 0; i < rawSections.length; i++) {
+        normalized.push(rawSections[i]);
+
+        if (i < rawSections.length - 1) {
+          const currArrStation = rawSections[i].arrival.station.name;
+          const nextDepStation = rawSections[i + 1].departure.station.name;
+
+          if (currArrStation !== nextDepStation && !rawSections[i].walk && !rawSections[i + 1].walk) {
+            const tArr = new Date(rawSections[i].arrival.arrival).getTime();
+            const tDepNext = new Date(rawSections[i + 1].departure.departure).getTime();
+            const walkMin = Math.max(1, Math.round((tDepNext - tArr) / 60000));
+
+            normalized.push({
+              walk: { duration: walkMin * 60 },
+              departure: {
+                station: { name: currArrStation },
+                departure: rawSections[i].arrival.arrival,
+                platform: rawSections[i].arrival.platform || '-'
+              },
+              arrival: {
+                station: { name: nextDepStation },
+                arrival: rawSections[i + 1].departure.departure,
+                platform: rawSections[i + 1].departure.platform || '-'
+              },
+              isSynthesizedWalk: true
+            });
+          }
+        }
+      }
+      return normalized;
+    }
+
+    // ==========================================
+    // SCHRITT 1: Pfade ermitteln & synchronisieren
+    // ==========================================
+    async function executeStep1(evt) {
+      evt.preventDefault();
+      queryOrigin = document.getElementById('fromInput').value.trim();
+      queryDestination = document.getElementById('toInput').value.trim();
+      const date = document.getElementById('dateInput').value;
+      const time = document.getElementById('timeInput').value;
+      queryIsArrivalMode = document.getElementById('modeSelect').value === '1';
+
+      saveStationHistory(queryOrigin);
+      saveStationHistory(queryDestination);
+
+      document.getElementById('step1Container').style.display = 'block';
+      document.getElementById('step1Output').innerHTML = '<div class="status-msg">Wege werden gesucht...</div>';
+      document.getElementById('step2Container').style.display = 'none';
+      document.getElementById('step3Container').style.display = 'none';
+
+      const url = `https://transport.opendata.ch/v1/connections?from=${encodeURIComponent(queryOrigin)}&to=${encodeURIComponent(queryDestination)}&date=${date}&time=${time}&isArrivalTime=${queryIsArrivalMode ? 1 : 0}&limit=6`;
+
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (!data.connections || data.connections.length === 0) {
+          document.getElementById('step1Output').innerHTML = '<div class="status-msg">Keine Pfade gefunden.</div>';
+          return;
+        }
+
+        activeConnections = data.connections.map(conn => ({
+          ...conn,
+          sections: normalizeConnectionSections(conn)
+        }));
+
+        document.getElementById('step1Output').innerHTML = '<div class="status-msg">Prüfe Umsteigezeiten und synchronisiere Anschlüsse...</div>';
+        await autoRepairAllConnections();
+
+        updateStep1PathList();
+        renderStep2Strands();
+      } catch (err) {
+        document.getElementById('step1Output').innerHTML = `<div class="status-msg" style="color:var(--alert-color);">Fehler: ${err.message}</div>`;
+      }
+    }
+
+    function updateStep1PathList() {
+      let html = '<ul style="list-style:none; padding:0; display:grid; gap:8px;">';
+      activeConnections.forEach((conn, idx) => {
+        const stations = [conn.from.station.name];
+        conn.sections.forEach(sec => {
+          if (sec.arrival && sec.arrival.station) stations.push(sec.arrival.station.name);
+        });
+        const pathString = [...new Set(stations)].join(' ➔ ');
+        html += `
+          <li style="padding:10px; background:var(--bg-color); border:1px solid var(--border-color); border-radius:6px; font-size:13px;">
+            <strong>Pfad ${idx + 1}:</strong> ${pathString}
+          </li>
+        `;
+      });
+      html += '</ul>';
+      document.getElementById('step1Output').innerHTML = html;
+    }
+
+    // Rekursive automatische Prüfung und Reparatur von Knoten zu Knoten
+    async function autoRepairAllConnections() {
+      const savedTimes = loadSavedTransferTimes();
+      for (let cIdx = 0; cIdx < activeConnections.length; cIdx++) {
+        let needsCheck = true;
+        let loopLimit = 6;
+        while (needsCheck && loopLimit > 0) {
+          needsCheck = false;
+          loopLimit--;
+          const conn = activeConnections[cIdx];
+          const sections = conn.sections;
+
+          for (let sIdx = 0; sIdx < sections.length - 1; sIdx++) {
+            const currSec = sections[sIdx];
+            const nextSec = sections[sIdx + 1];
+            const stName = currSec.arrival.station.name;
+            const minReq = savedTimes[stName] !== undefined ? savedTimes[stName] : 5;
+            const actualBuffer = Math.round((new Date(nextSec.departure.departure) - new Date(currSec.arrival.arrival)) / 60000);
+
+            if (actualBuffer < minReq) {
+              await repairConnectionNode(cIdx, stName, minReq, sIdx);
+              needsCheck = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // ==========================================
+    // SCHRITT 2: Lineare Kette & Darstellung
+    // ==========================================
+    function renderStep2Strands() {
+      document.getElementById('step2Container').style.display = 'block';
+      evaluatedRoutes = [];
+      const savedTimes = loadSavedTransferTimes();
+      const container = document.getElementById('step2StrandsWrapper');
+      container.innerHTML = '';
+
+      const reqDateStr = document.getElementById('dateInput').value;
+      const reqTimeStr = document.getElementById('timeInput').value;
+      const requestedRefEpoch = new Date(`${reqDateStr}T${reqTimeStr}`).getTime();
+
+      activeConnections.forEach((conn, cIdx) => {
+        const sections = conn.sections;
+        const vehicleRides = sections.filter(s => s.journey).length;
+        let routeTransfers = Math.max(0, vehicleRides - 1);
+        let routeDistanceEquiv = 0;
+
+        const tStart = new Date(sections[0].departure.departure).getTime();
+        const tEnd = new Date(sections[sections.length - 1].arrival.arrival).getTime();
+        const routeDurationMin = Math.max(1, Math.round((tEnd - tStart) / 60000));
+
+        let refTimeDeltaMin = 0;
+        if (queryIsArrivalMode) {
+          refTimeDeltaMin = Math.abs(Math.round((tEnd - requestedRefEpoch) / 60000));
+        } else {
+          refTimeDeltaMin = Math.abs(Math.round((tStart - requestedRefEpoch) / 60000));
+        }
+
+        const card = document.createElement('div');
+        card.className = 'strand-card';
+
+        let strandHtml = `
+          <div class="strand-title">
+            <strong>Pfad ${cIdx + 1}</strong>: ${sections[0].departure.station.name} ➔ ${sections[sections.length - 1].arrival.station.name}
+            <span style="font-size:12px; font-weight:normal; color:var(--text-muted); margin-left:12px;">Dauer: ${routeDurationMin} min | Umstiege: ${routeTransfers}</span>
+          </div>
+          <div class="chain-flow">
+        `;
+
+        sections.forEach((sec, sIdx) => {
+          const fromSt = sec.departure.station.name;
+          const toSt = sec.arrival.station.name;
+          const depTime = sec.departure.departure;
+          const arrTime = sec.arrival.arrival;
+          const isWalk = !!sec.walk;
+          const line = sec.journey ? `${sec.journey.category} ${sec.journey.number || ''}`.trim() : 'Fussweg';
+
+          const legDur = Math.max(1, Math.round((new Date(arrTime) - new Date(depTime)) / 60000));
+          routeDistanceEquiv += (!isWalk ? legDur * 1.5 : legDur * 0.5);
+
+          if (sIdx === 0) {
+            strandHtml += `
+              <div class="chain-node">
+                <span class="station-label">${fromSt}</span>
+                <span class="time-meta">Ab ${formatTime(depTime)} (Gl. ${sec.departure.platform || '-'})</span>
+              </div>
+            `;
+          }
+
+          strandHtml += `
+            <div class="chain-edge">
+              <span class="line-badge ${isWalk ? 'walk' : ''}">${line}</span>
+              <span class="edge-duration">⏱ ${legDur}m</span>
+              <span class="edge-arrow">➔</span>
+            </div>
+          `;
+
+          const isTransfer = sIdx < sections.length - 1;
+          const minRequired = savedTimes[toSt] !== undefined ? savedTimes[toSt] : 5;
+
+          if (isTransfer) {
+            const nextSec = sections[sIdx + 1];
+            const actualBuffer = Math.round((new Date(nextSec.departure.departure) - new Date(arrTime)) / 60000);
+            const hasDeficit = actualBuffer < minRequired;
+            const isStationChange = toSt !== nextSec.departure.station.name;
+
+            strandHtml += `
+              <div class="chain-node interchange ${hasDeficit ? 'breached' : ''}">
+                <span class="station-label">${toSt}</span>
+                ${isStationChange ? `<span style="font-size:10px; color:#b45309; font-weight:bold;">🚶 Fussweg nach ${nextSec.departure.station.name}</span>` : ''}
+                <span class="time-meta">An ${formatTime(arrTime)} (Gl. ${sec.arrival.platform || '-'}) | Ab ${formatTime(nextSec.departure.departure)} (Gl. ${nextSec.departure.platform || '-'})</span>
+                <div class="transfer-control">
+                  <span>Puffer: <strong>${actualBuffer} min</strong> | Soll:</span>
+                  <input type="number" class="chain-input" min="1" max="45" value="${minRequired}"
+                         data-station="${toSt}"
+                         title="Persistierte Mindestumsteigezeit"
+                         onchange="handleTransferModification(${cIdx}, '${toSt}', this.value, ${sIdx})">
+                  <span>min ${hasDeficit ? '⚠️' : '✅'}</span>
+                </div>
+              </div>
+            `;
+          } else {
+            strandHtml += `
+              <div class="chain-node terminal">
+                <span class="station-label">${toSt}</span>
+                <span class="time-meta">An ${formatTime(arrTime)} (Gl. ${sec.arrival.platform || '-'})</span>
+              </div>
+            `;
+          }
+        });
+
+        strandHtml += `</div>`;
+        card.innerHTML = strandHtml;
+        container.appendChild(card);
+
+        evaluatedRoutes.push({
+          index: cIdx + 1,
+          connection: conn,
+          durationMin: routeDurationMin,
+          transfers: routeTransfers,
+          costScore: Math.round(routeDistanceEquiv * 0.4 + routeTransfers * 2),
+          timeDeltaMin: refTimeDeltaMin
+        });
+      });
+
+      renderStep3Winners();
+    }
+
+    async function forceRecalculation() {
+      const btn = document.getElementById('btnForceRecalc');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Berechne neu...';
+      }
+
+      const inputs = document.querySelectorAll('.chain-input');
+      inputs.forEach(input => {
+        const val = parseInt(input.value, 10);
+        const stationName = input.getAttribute('data-station');
+        if (stationName && !isNaN(val)) {
+          saveStationTransferTime(stationName, val);
+        }
+      });
+
+      await autoRepairAllConnections();
+      updateStep1PathList();
+      renderStep2Strands();
+
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🔄 Neuberechnung erzwingen';
+      }
+    }
+
+    async function handleTransferModification(cIdx, stationName, newVal, sectionIdx) {
+      const requiredMin = parseInt(newVal, 10) || 5;
+      saveStationTransferTime(stationName, requiredMin);
+
+      await repairConnectionNode(cIdx, stationName, requiredMin, sectionIdx);
+      await autoRepairAllConnections();
+
+      updateStep1PathList();
+      renderStep2Strands();
+    }
+
+    // Führt die Vorwärts- bzw. Rückwärtsrecherche für eine Teilstrecke aus
+    async function repairConnectionNode(cIdx, stationName, requiredMin, sectionIdx) {
+      const conn = activeConnections[cIdx];
+      const sections = conn.sections;
+      const currSec = sections[sectionIdx];
+      const nextSec = sections[sectionIdx + 1];
+
+      if (!nextSec) return;
+
+      if (queryIsArrivalMode) {
+        // Zielzeit fix ➔ Zubringer früher anfahren
+        const nextDepMs = new Date(nextSec.departure.departure).getTime();
+        const targetArrivalMs = nextDepMs - (requiredMin * 60000);
+        const targetDate = new Date(targetArrivalMs);
+
+        const dStr = targetDate.toISOString().split('T')[0];
+        const tStr = targetDate.toTimeString().slice(0, 5);
+
+        const backwardUrl = `https://transport.opendata.ch/v1/connections?from=${encodeURIComponent(queryOrigin)}&to=${encodeURIComponent(stationName)}&date=${dStr}&time=${tStr}&isArrivalTime=1&limit=1`;
+
+        try {
+          const resp = await fetch(backwardUrl);
+          const data = await resp.json();
+
+          if (data.connections && data.connections.length > 0) {
+            const rawSub = data.connections[0];
+            const normalizedSub = normalizeConnectionSections(rawSub);
+            const retainedOutbound = sections.slice(sectionIdx + 1);
+            activeConnections[cIdx] = {
+              ...conn,
+              from: rawSub.from,
+              sections: [...normalizedSub, ...retainedOutbound]
+            };
+          }
+        } catch (err) {
+          console.error('Fehler bei Rückwärts-Kaskade:', err);
+        }
+
+      } else {
+        // Startzeit fix ➔ Anschluss später abfahren
+        const arrMs = new Date(currSec.arrival.arrival).getTime();
+        const earliestDepMs = arrMs + (requiredMin * 60000);
+        const earliestDate = new Date(earliestDepMs);
+
+        const dStr = earliestDate.toISOString().split('T')[0];
+        const tStr = earliestDate.toTimeString().slice(0, 5);
+
+        const forwardUrl = `https://transport.opendata.ch/v1/connections?from=${encodeURIComponent(stationName)}&to=${encodeURIComponent(queryDestination)}&date=${dStr}&time=${tStr}&isArrivalTime=0&limit=1`;
+
+        try {
+          const resp = await fetch(forwardUrl);
+          const data = await resp.json();
+
+          if (data.connections && data.connections.length > 0) {
+            const rawSub = data.connections[0];
+            const normalizedSub = normalizeConnectionSections(rawSub);
+            const retainedInbound = sections.slice(0, sectionIdx + 1);
+            activeConnections[cIdx] = {
+              ...conn,
+              to: rawSub.to,
+              sections: [...retainedInbound, ...normalizedSub]
+            };
+          }
+        } catch (err) {
+          console.error('Fehler bei Vorwärts-Kaskade:', err);
+        }
+      }
+    }
+
+    // ==========================================
+    // SCHRITT 3: Optimale 3 Routen & Entzerrter Graph
+    // ==========================================
+    function renderStep3Winners() {
+      document.getElementById('step3Container').style.display = 'block';
+
+      // Sortierung nach Kategorie mit Tie-Breaking nach zeitlicher Nähe zur Wunschzeit
+      const byDuration = [...evaluatedRoutes].sort((a, b) => {
+        if (a.durationMin !== b.durationMin) return a.durationMin - b.durationMin;
+        return a.timeDeltaMin - b.timeDeltaMin;
+      });
+
+      const byTransfers = [...evaluatedRoutes].sort((a, b) => {
+        if (a.transfers !== b.transfers) return a.transfers - b.transfers;
+        if (a.timeDeltaMin !== b.timeDeltaMin) return a.timeDeltaMin - b.timeDeltaMin;
+        return a.durationMin - b.durationMin;
+      });
+
+      const byCost = [...evaluatedRoutes].sort((a, b) => {
+        if (a.costScore !== b.costScore) return a.costScore - b.costScore;
+        if (a.timeDeltaMin !== b.timeDeltaMin) return a.timeDeltaMin - b.timeDeltaMin;
+        return a.durationMin - b.durationMin;
+      });
+
+      const bestFastest = byDuration[0];
+      const bestTransfers = byTransfers[0];
+      const bestCost = byCost[0];
+
+      document.getElementById('podiumSummary').innerHTML = `
+        <div class="podium-card fastest">
+          <div class="podium-title" style="color:var(--highlight-fastest);">
+            <span>⚡ Kürzeste Reisezeit</span>
+            <span>Pfad ${bestFastest.index}</span>
+          </div>
+          <p style="font-size:13px;">Dauer: <strong>${bestFastest.durationMin} min</strong> | Umstiege: ${bestFastest.transfers} | Tarif: ~CHF ${bestCost.costScore}</p>
+        </div>
+        <div class="podium-card transfers">
+          <div class="podium-title" style="color:var(--highlight-transfers);">
+            <span>🔀 Wenigste Umstiege</span>
+            <span>Pfad ${bestTransfers.index}</span>
+          </div>
+          <p style="font-size:13px;">Umstiege: <strong>${bestTransfers.transfers}</strong> | Dauer: ${bestTransfers.durationMin} min | Tarif: ~CHF ${bestCost.costScore}</p>
+        </div>
+        <div class="podium-card cost">
+          <div class="podium-title" style="color:var(--highlight-cost);">
+            <span>💰 Geringste Kosten</span>
+            <span>Pfad ${bestCost.index}</span>
+          </div>
+          <p style="font-size:13px;">Tarif: <strong>~CHF ${bestCost.costScore}</strong> | Dauer: ${bestCost.durationMin} min | Umstiege: ${bestCost.transfers}</p>
+        </div>
+      `;
+
+      currentBestRoutes = [];
+      const seen = new Set();
+      [
+        { route: bestFastest, role: 'Kürzeste Zeit', color: 'var(--highlight-fastest)' },
+        { route: bestTransfers, role: 'Wenigste Umstiege', color: 'var(--highlight-transfers)' },
+        { route: bestCost, role: 'Geringste Kosten', color: 'var(--highlight-cost)' }
+      ].forEach(entry => {
+        if (!seen.has(entry.route.index)) {
+          seen.add(entry.route.index);
+          currentBestRoutes.push(entry);
+        }
+      });
+
+      renderUnifiedGraph(currentBestRoutes);
+    }
+
+    // Rendert die drei optimalen Pfade strikt untereinander
+    function renderUnifiedGraph(winnerList) {
+      const container = document.getElementById('graphContainer');
+      if (!winnerList || winnerList.length === 0) {
+        container.innerHTML = '<div class="status-msg">Keine Routen zum Anzeigen vorhanden.</div>';
+        return;
+      }
+
+      const pathHeight = 220; // Grosszügigerer Zeilenabstand zwischen den 3 Pfaden
+      const colSpacing = 380;
+      const marginLeft = 220; // Mehr Freiraum links, damit der Header nicht in den Startknoten ragt
+      const marginTop = 90;
+
+      let maxNodesInPath = 0;
+      winnerList.forEach(w => {
+        const sec = w.route.connection.sections;
+        if (sec.length + 1 > maxNodesInPath) maxNodesInPath = sec.length + 1;
+      });
+
+      const svgWidth = Math.max(1200, (maxNodesInPath - 1) * colSpacing + marginLeft * 2 + 100);
+      const svgHeight = winnerList.length * pathHeight + marginTop + 20;
+
+      let allSvgContent = '';
+
+      winnerList.forEach((w, pathIdx) => {
+        const sections = w.route.connection.sections;
+        const baseY = marginTop + pathIdx * pathHeight;
+
+        // Header-Badge 65px über die Knotenlinie setzen, um Überlappung mit Stationsnamen zu verhindern
+        allSvgContent += `
+          <g class="path-lane-header">
+            <rect x="24" y="${baseY - 75}" width="340" height="28" rx="6" fill="var(--card-bg)" stroke="${w.color}" stroke-width="1.5" />
+            <text x="36" y="${baseY - 56}" font-size="12" font-weight="700" fill="${w.color}">
+              ${w.role} (Pfad ${w.route.index} • ${w.route.durationMin} min • ${w.route.transfers} Umst.)
+            </text>
+          </g>
+        `;
+
+        sections.forEach((sec, sIdx) => {
+          const x1 = marginLeft + sIdx * colSpacing;
+          const x2 = marginLeft + (sIdx + 1) * colSpacing;
+          const midX = (x1 + x2) / 2;
+
+          const isWalk = !!sec.walk;
+          const lineText = sec.journey ? `${sec.journey.category} ${sec.journey.number || ''}`.trim() : 'Fussweg';
+          const legDur = Math.max(1, Math.round((new Date(sec.arrival.arrival) - new Date(sec.departure.departure)) / 60000));
+
+          allSvgContent += `
+            <g class="path-edge">
+              <line x1="${x1}" y1="${baseY}" x2="${x2}" y2="${baseY}" stroke="${w.color}" stroke-width="3" stroke-dasharray="${isWalk ? '6,6' : 'none'}" />
+              <rect x="${midX - 60}" y="${baseY - 22}" width="120" height="34" rx="6" fill="var(--card-bg)" stroke="${w.color}" stroke-width="1" />
+              <text x="${midX}" y="${baseY - 8}" font-size="11" font-weight="700" fill="${w.color}" text-anchor="middle">${lineText}</text>
+              <text x="${midX}" y="${baseY + 7}" font-size="10" fill="var(--text-muted)" text-anchor="middle">⏱ ${legDur} min</text>
+            </g>
+          `;
+
+          if (sIdx === 0) {
+            allSvgContent += `
+              <g class="path-node">
+                <circle cx="${x1}" cy="${baseY}" r="11" fill="var(--node-bg)" stroke="${w.color}" stroke-width="3" />
+                <text x="${x1}" y="${baseY - 18}" font-size="12" font-weight="700" fill="var(--text-color)" text-anchor="middle">${sec.departure.station.name}</text>
+                <text x="${x1}" y="${baseY + 22}" font-size="10" fill="var(--text-muted)" text-anchor="middle">Ab ${formatTime(sec.departure.departure)} (Gl.${sec.departure.platform || '-'})</text>
+              </g>
+            `;
+          }
+
+          const isFinal = sIdx === sections.length - 1;
+          allSvgContent += `
+            <g class="path-node">
+              <circle cx="${x2}" cy="${baseY}" r="${isFinal ? 13 : 10}" fill="var(--node-bg)" stroke="${w.color}" stroke-width="${isFinal ? 4 : 2.5}" />
+              <text x="${x2}" y="${baseY - 18}" font-size="12" font-weight="700" fill="var(--text-color)" text-anchor="middle">${sec.arrival.station.name}</text>
+              <text x="${x2}" y="${baseY + 22}" font-size="10" fill="var(--text-muted)" text-anchor="middle">An ${formatTime(sec.arrival.arrival)} (Gl.${sec.arrival.platform || '-'})</text>
+            </g>
+          `;
+        });
+      });
+
+      container.innerHTML = `<svg id="unifiedRoutesSvg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">${allSvgContent}</svg>`;
+    }
+
+    // ==========================================
+    // REISEPLAN IM NEUEN FENSTER (OHNE GRAPH)
+    // ==========================================
+    function openItineraryWindow() {
+      if (!currentBestRoutes || currentBestRoutes.length === 0) {
+        alert('Keine berechneten Routen vorhanden.');
+        return;
+      }
+
+      const win = window.open('', '_blank');
+      if (!win) {
+        alert('Popup blockiert. Bitte Popups im Browser erlauben.');
+        return;
+      }
+
+      let routesHtml = '';
+      currentBestRoutes.forEach(br => {
+        const conn = br.route.connection;
+        const sections = conn.sections;
+
+        routesHtml += `
+          <div class="itinerary-card">
+            <h3>${br.role} (Pfad ${br.route.index})</h3>
+            <p><strong>Gesamtreisezeit:</strong> ${br.route.durationMin} min | <strong>Umstiege:</strong> ${br.route.transfers} | <strong>Tarif:</strong> ~CHF ${br.route.costScore}</p>
+            <table class="itin-table">
+              <thead>
+                <tr>
+                  <th>Abschnitt</th>
+                  <th>Linie / Verkehrsmittel</th>
+                  <th>Abfahrt</th>
+                  <th>Gleis</th>
+                  <th>Ankunft</th>
+                  <th>Gleis</th>
+                  <th>Fahrzeit</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        sections.forEach((sec, sIdx) => {
+          const isFirstLeg = sIdx === 0;
+          const isLastLeg = sIdx === sections.length - 1;
+          const dur = Math.max(1, Math.round((new Date(sec.arrival.arrival) - new Date(sec.departure.departure)) / 60000));
+          const line = sec.journey ? `${sec.journey.category} ${sec.journey.number || ''}`.trim() : 'Fussweg';
+
+          const depDisplay = isFirstLeg
+            ? `<span class="time-highlight start-highlight">🚀 ${formatTime(sec.departure.departure)}</span>`
+            : formatTime(sec.departure.departure);
+
+          const arrDisplay = isLastLeg
+            ? `<span class="time-highlight end-highlight">🏁 ${formatTime(sec.arrival.arrival)}</span>`
+            : formatTime(sec.arrival.arrival);
+
+          routesHtml += `
+            <tr class="${isFirstLeg || isLastLeg ? 'highlighted-row' : ''}">
+              <td>${sec.departure.station.name} ➔ ${sec.arrival.station.name}</td>
+              <td><strong>${line}</strong></td>
+              <td>${depDisplay}</td>
+              <td>${sec.departure.platform || '-'}</td>
+              <td>${arrDisplay}</td>
+              <td>${sec.arrival.platform || '-'}</td>
+              <td>${dur} min</td>
+            </tr>
+          `;
+        });
+
+        routesHtml += `</tbody></table></div>`;
+      });
+
+      const fullDoc = `
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+          <meta charset="UTF-8">
+          <title>Offizieller SBB Reiseplan</title>
+          <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 30px; color: #1e293b; background: #ffffff; }
+            .header-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eb0000; padding-bottom: 16px; margin-bottom: 24px; }
+            h1 { font-size: 24px; color: #eb0000; margin: 0; }
+            .btn-save-jpg { background: #eb0000; color: #ffffff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+            .btn-save-jpg:hover { background: #b91c1c; }
+            .itinerary-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            .itin-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+            .itin-table th, .itin-table td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
+            .itin-table th { background: #f8fafc; font-weight: 600; }
+            .highlighted-row { background-color: #f8fafc; font-weight: 500; }
+            .time-highlight { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: 700; }
+            .start-highlight { background-color: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+            .end-highlight { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+          </style>
+        </head>
+        <body>
+          <div id="exportableArea">
+            <div class="header-bar">
+              <div>
+                <h1>Schweizer Bundesbahnen (SBB) - Reiseplan</h1>
+                <p style="font-size:13px; color:#64748b; margin-top:4px;">Erstellt am: ${new Date().toLocaleString('de-CH')}</p>
+              </div>
+              <button class="btn-save-jpg" onclick="downloadTableAsJpg()">Als JPG speichern</button>
+            </div>
+            ${routesHtml}
+          </div>
+
+          <script>
+            function downloadTableAsJpg() {
+              const el = document.getElementById('exportableArea');
+              const btn = document.querySelector('.btn-save-jpg');
+              btn.style.display = 'none';
+
+              html2canvas(el, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+                btn.style.display = 'block';
+                const link = document.createElement('a');
+                link.download = 'SBB_Reiseplan_' + new Date().toISOString().slice(0, 10) + '.jpg';
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+              });
+            }
+          <\/script>
+        </body>
+        </html>
+      `;
+
+      win.document.open();
+      win.document.write(fullDoc);
+      win.document.close();
+    }
+  </script>
+</body>
+</html>
